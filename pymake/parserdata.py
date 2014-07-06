@@ -7,8 +7,7 @@ except ImportError:
     from io import StringIO
 
 import data, parser, functions
-from pymake.globrelative import hasglob, glob
-from pymake import util
+from pymake import util, globrelative
 
 _log = logging.getLogger('pymake.data')
 _tabwidth = 4
@@ -65,10 +64,10 @@ class Location(object):
 
 def _expandwildcards(makefile, tlist):
     for t in tlist:
-        if not hasglob(t):
+        if not globrelative.hasglob(t):
             yield t
         else:
-            l = glob(makefile.workdir, t)
+            l = globrelative.glob(makefile.workdir, t)
             for r in l:
                 yield r
 

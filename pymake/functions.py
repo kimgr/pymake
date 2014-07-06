@@ -2,11 +2,10 @@
 Makefile functions.
 """
 from __future__ import print_function
-
 import subprocess, os, logging, sys
+
 import parser
-from globrelative import glob
-from pymake import util
+from pymake import util, globrelative
 
 log = logging.getLogger('pymake.data')
 
@@ -549,7 +548,7 @@ class WildcardFunction(Function):
 
         fd.write(' '.join([x.replace('\\','/')
                            for p in patterns
-                           for x in glob(makefile.workdir, p)]))
+                           for x in globrelative.glob(makefile.workdir, p)]))
 
     @property
     def is_filesystem_dependent(self):
