@@ -10,8 +10,8 @@ try:
 except ImportError:
     from io import StringIO
 
-import parserdata, parser, functions, process, implicit, globrelative
-from pymake import util
+import parserdata, parser, functions, process, globrelative
+from pymake import util, implicit
 
 
 if sys.version_info[0] < 3:
