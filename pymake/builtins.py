@@ -2,7 +2,7 @@
 import errno, sys, os, shutil, time
 from getopt import getopt, GetoptError
 
-from process import PythonException
+from pymake.process import PythonException
 
 __all__ = ["mkdir", "rm", "sleep", "touch"]
 
