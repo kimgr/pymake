@@ -3,10 +3,10 @@ Makefile functions.
 """
 from __future__ import print_function
 
-import parser, util
 import subprocess, os, logging, sys
+import parser
 from globrelative import glob
-
+from pymake import util
 
 log = logging.getLogger('pymake.data')
 

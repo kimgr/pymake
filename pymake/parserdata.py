@@ -1,14 +1,14 @@
 from __future__ import print_function
-
 import logging, re, os
-import data, parser, functions, util
-from pymake.globrelative import hasglob, glob
 
 try:
     from cStringIO import StringIO
 except ImportError:
     from io import StringIO
 
+import data, parser, functions
+from pymake.globrelative import hasglob, glob
+from pymake import util
 
 _log = logging.getLogger('pymake.data')
 _tabwidth = 4
