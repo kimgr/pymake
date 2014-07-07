@@ -4,13 +4,14 @@ A representation of makefile data structures.
 
 import logging, re, os, sys
 from functools import reduce
-import parserdata, parser, functions, util, implicit, process, jobs, command
-import globrelative
 
 try:
     from cStringIO import StringIO
 except ImportError:
     from io import StringIO
+
+import parserdata, parser, functions, command
+from pymake import process, jobs, implicit, util, globrelative
 
 
 if sys.version_info[0] < 3:
