@@ -11,7 +11,9 @@ except when a submake specifies -j1 when the parent make is building in parallel
 
 import os, subprocess, sys, logging, time, traceback, re
 from optparse import OptionParser
-import data, parserdata, process, util
+
+import data, parserdata
+from pymake import jobs, util
 
 # TODO: If this ever goes from relocatable package to system-installed, this may need to be
 # a configured-in path.
@@ -252,7 +254,7 @@ def main(args, env, cwd, cb):
 
         logging.basicConfig(level=loglevel, **logkwargs)
 
-        context = process.getcontext(options.jobcount)
+        context = jobs.getcontext(options.jobcount)
 
         if options.printdir:
             print("make.py[%i]: Entering directory '%s'" % (makelevel, workdir))
