@@ -6,6 +6,8 @@ import subprocess
 subprocess._cleanup = lambda: None
 from collections import deque
 
+from pymake.builtins import PythonException
+
 
 class Job(object):
     """
@@ -58,15 +60,6 @@ class PopenJob(Job):
             return -127
         finally:
             os.environ['PATH'] = oldpath
-
-class PythonException(Exception):
-    def __init__(self, message, exitcode):
-        Exception.__init__(self)
-        self.message = message
-        self.exitcode = exitcode
-
-    def __str__(self):
-        return self.message
 
 
 class PythonJob(Job):

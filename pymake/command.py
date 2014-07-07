@@ -13,7 +13,7 @@ import os, subprocess, sys, logging, time, traceback, re
 from optparse import OptionParser
 
 import data, parserdata
-from pymake import jobs, util
+from pymake import jobs, util, process
 
 # TODO: If this ever goes from relocatable package to system-installed, this may need to be
 # a configured-in path.
@@ -278,3 +278,27 @@ def main(args, env, cwd, cb):
         sys.stdout.flush()
         cb(2)
         return
+
+def call(cline, env, cwd, loc, cb, context, echo, justprint=False):
+    executable, argv = process.prepare_command(cline, cwd, loc)
+
+    if not len(argv):
+        cb(res=0)
+        return
+
+    if argv[0] == makepypath:
+        main(argv[1:], env, cwd, cb)
+        return
+
+    if argv[0:2] == [sys.executable.replace('\\', '/'),
+                     makepypath.replace('\\', '/')]:
+        main(argv[2:], env, cwd, cb)
+        return
+
+    context.call(argv, executable=executable, shell=False, env=env, cwd=cwd, cb=cb,
+                 echo=echo, justprint=justprint)
+
+def call_native(module, method, argv, env, cwd, loc, cb, context, echo, justprint=False,
+                pycommandpath=None):
+    context.call_native(module, method, argv, env=env, cwd=cwd, cb=cb,
+                        echo=echo, justprint=justprint, pycommandpath=pycommandpath)

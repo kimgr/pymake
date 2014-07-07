@@ -4,7 +4,7 @@ A representation of makefile data structures.
 
 import logging, re, os, sys
 from functools import reduce
-import parserdata, parser, functions, process, util, implicit
+import parserdata, parser, functions, util, implicit, process, jobs, command
 import globrelative
 
 try:
@@ -1411,7 +1411,7 @@ class _CommandWrapper(object):
 
     def __call__(self, cb):
         self.usercb = cb
-        process.call(self.cline, loc=self.loc, cb=self._cb, context=self.context, **self.kwargs)
+        command.call(self.cline, loc=self.loc, cb=self._cb, context=self.context, **self.kwargs)
 
 class _NativeWrapper(_CommandWrapper):
     def __init__(self, cline, ignoreErrors, loc, context,
@@ -1435,7 +1435,7 @@ class _NativeWrapper(_CommandWrapper):
         method = parts[1]
         cline_list = parts[2:]
         self.usercb = cb
-        process.call_native(module, method, cline_list,
+        command.call_native(module, method, cline_list,
                             loc=self.loc, cb=self._cb, context=self.context,
                             pycommandpath=self.pycommandpath, **self.kwargs)
 
@@ -1776,7 +1776,7 @@ class Makefile(object):
 
         np = self.gettarget('.NOTPARALLEL')
         if len(np.rules):
-            self.context = process.getcontext(1)
+            self.context = jobs.getcontext(1)
 
         flavor, source, value = self.variables.get('.DEFAULT_GOAL')
         if value is not None:

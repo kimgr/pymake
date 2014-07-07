@@ -2,9 +2,19 @@
 import errno, sys, os, shutil, time
 from getopt import getopt, GetoptError
 
-from process import PythonException
 
 __all__ = ["mkdir", "rm", "sleep", "touch"]
+
+
+class PythonException(Exception):
+    def __init__(self, message, exitcode):
+        Exception.__init__(self)
+        self.message = message
+        self.exitcode = exitcode
+
+    def __str__(self):
+        return self.message
+
 
 def mkdir(args):
   """
