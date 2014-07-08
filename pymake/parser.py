@@ -35,48 +35,14 @@ coming.
 
 import logging, re, os, sys
 import data, functions, util, parserdata
-from pymake import errors
+from pymake import errors, basic
 
 _log = logging.getLogger('pymake.parser')
-
-_skipws = re.compile('\S')
-class Data(object):
-    """
-    A single virtual "line", which can be multiple source lines joined with
-    continuations.
-    """
-
-    __slots__ = ('s', 'lstart', 'lend', 'loc')
-
-    def __init__(self, s, lstart, lend, loc):
-        self.s = s
-        self.lstart = lstart
-        self.lend = lend
-        self.loc = loc
-
-    @staticmethod
-    def fromstring(s, path):
-        return Data(s, 0, len(s), parserdata.Location(path, 1, 0))
-
-    def getloc(self, offset):
-        assert offset >= self.lstart and offset <= self.lend
-        return self.loc.offset(self.s, self.lstart, offset)
-
-    def skipwhitespace(self, offset):
-        """
-        Return the offset of the first non-whitespace character in data starting at offset, or None if there are
-        only whitespace characters remaining.
-        """
-        m = _skipws.search(self.s, offset, self.lend)
-        if m is None:
-            return self.lend
-
-        return m.start(0)
 
 _linere = re.compile(r'\\*\n')
 def enumeratelines(s, filename):
     """
-    Enumerate lines in a string as Data objects, joining line
+    Enumerate lines in a string as basic.Data objects, joining line
     continuations.
     """
 
@@ -91,13 +57,13 @@ def enumeratelines(s, filename):
             # odd number of backslashes is a continuation
             continue
 
-        yield Data(s, off, end - 1, parserdata.Location(filename, lineno, 0))
+        yield basic.Data(s, off, end - 1, basic.Location(filename, lineno, 0))
 
         lineno += curlines
         curlines = 0
         off = end
 
-    yield Data(s, off, len(s), parserdata.Location(filename, lineno, 0))
+    yield basic.Data(s, off, len(s), basic.Location(filename, lineno, 0))
 
 _alltokens = re.compile(r'''\\*\# | # hash mark preceeded by any number of backslashes
                             := |
@@ -662,7 +628,7 @@ _matchingbrace = {
 
 def parsemakesyntax(d, offset, stopon, iterfunc):
     """
-    Given Data, parse it into a data.Expansion.
+    Given basic.Data, parse it into a data.Expansion.
 
     @param stopon (sequence)
         Indicate characters where toplevel parsing should stop.

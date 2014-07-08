@@ -3,7 +3,7 @@ from __future__ import print_function
 import logging, re, os
 import data, parser, util
 from pymake.globrelative import hasglob, glob
-from pymake import errors
+from pymake import errors, basic
 
 try:
     from cStringIO import StringIO
@@ -12,57 +12,6 @@ except ImportError:
 
 
 _log = logging.getLogger('pymake.data')
-_tabwidth = 4
-
-class Location(object):
-    """
-    A location within a makefile.
-
-    For the moment, locations are just path/line/column, but in the future
-    they may reference parent locations for more accurate "included from"
-    or "evaled at" error reporting.
-    """
-    __slots__ = ('path', 'line', 'column')
-
-    def __init__(self, path, line, column):
-        self.path = path
-        self.line = line
-        self.column = column
-
-    def offset(self, s, start, end):
-        """
-        Returns a new location offset by
-        the specified string.
-        """
-
-        if start == end:
-            return self
-
-        skiplines = s.count('\n', start, end)
-        line = self.line + skiplines
-        if skiplines:
-            lastnl = s.rfind('\n', start, end)
-            assert lastnl != -1
-            start = lastnl + 1
-            column = 0
-        else:
-            column = self.column
-
-        while True:
-            j = s.find('\t', start, end)
-            if j == -1:
-                column += end - start
-                break
-
-            column += j - start
-            column += _tabwidth
-            column -= column % _tabwidth
-            start = j + 1
-
-        return Location(self.path, line, column)
-
-    def __str__(self):
-        return "%s:%s:%s" % (self.path, self.line, self.column)
 
 def _expandwildcards(makefile, tlist):
     for t in tlist:
@@ -98,7 +47,7 @@ def parsecommandlineargs(args):
 
             stmts.append(ExportDirective(vnameexp, concurrent_set=True))
             stmts.append(SetVariable(vnameexp, token=t,
-                                     value=val, valueloc=Location('<command-line>', i, len(vname) + len(t)),
+                                     value=val, valueloc=basic.Location('<command-line>', i, len(vname) + len(t)),
                                      targetexp=None, source=data.Variables.SOURCE_COMMANDLINE))
         else:
             r.append(data.stripdotslash(a))
@@ -440,7 +389,7 @@ class SetVariable(Statement):
                 assert self.token == ':='
 
                 flavor = data.Variables.FLAVOR_SIMPLE
-                d = parser.Data.fromstring(self.value, self.valueloc)
+                d = basic.Data.fromstring(self.value, self.valueloc)
                 e, t, o = parser.parsemakesyntax(d, 0, (), parser.iterdata)
                 value = e.resolvestr(makefile, makefile.variables)
 

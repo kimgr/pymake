@@ -4,9 +4,9 @@ A representation of makefile data structures.
 
 import logging, re, os, sys
 from functools import reduce
-import parserdata, parser, functions, process, util, implicit
+import parser, functions, process, util, implicit
 import globrelative
-from pymake import errors
+from pymake import errors, basic
 
 try:
     from cStringIO import StringIO
@@ -222,7 +222,7 @@ class Expansion(BaseExpansion, list):
 
     @staticmethod
     def fromstring(s, path):
-        return StringExpansion(s, parserdata.Location(path, 1, 0))
+        return StringExpansion(s, basic.Location(path, 1, 0))
 
     def clone(self):
         e = Expansion()
@@ -425,12 +425,10 @@ class Variables(object):
     A mapping from variable names to variables. Variables have flavor, source, and value. The value is an 
     expansion object.
     """
-
-    __slots__ = ('parent', '_map')
-
     FLAVOR_RECURSIVE = 0
     FLAVOR_SIMPLE = 1
     FLAVOR_APPEND = 2
+
 
     SOURCE_OVERRIDE = 0
     SOURCE_COMMANDLINE = 1
@@ -438,6 +436,8 @@ class Variables(object):
     SOURCE_ENVIRONMENT = 3
     SOURCE_AUTOMATIC = 4
     SOURCE_IMPLICIT = 5
+
+    __slots__ = ('parent', '_map')
 
     def __init__(self, parent=None):
         self._map = {} # vname -> flavor, source, valuestr, valueexp
@@ -459,7 +459,7 @@ class Variables(object):
         flavor, source, valuestr, valueexp = self._map.get(name, (None, None, None, None))
         if flavor is not None:
             if expand and flavor != self.FLAVOR_SIMPLE and valueexp is None:
-                d = parser.Data.fromstring(valuestr, parserdata.Location("Expansion of variables '%s'" % (name,), 1, 0))
+                d = basic.Data.fromstring(valuestr, basic.Location("Expansion of variables '%s'" % (name,), 1, 0))
                 valueexp, t, o = parser.parsemakesyntax(d, 0, (), parser.iterdata)
                 self._map[name] = flavor, source, valuestr, valueexp
 
@@ -528,7 +528,7 @@ class Variables(object):
             return
 
         if prevflavor == self.FLAVOR_SIMPLE:
-            d = parser.Data.fromstring(value, parserdata.Location("Expansion of variables '%s'" % (name,), 1, 0))
+            d = basic.Data.fromstring(value, basic.Location("Expansion of variables '%s'" % (name,), 1, 0))
             valueexp, t, o = parser.parsemakesyntax(d, 0, (), parser.iterdata)
 
             val = valueexp.resolvestr(makefile, variables, [name])
