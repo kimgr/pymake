@@ -1,4 +1,4 @@
-import pymake.data, pymake.parser, pymake.parserdata, pymake.functions
+import pymake.data, pymake.parser, pymake.parserdata, pymake.functions, pymake.basic
 import unittest
 import logging
 
@@ -27,7 +27,7 @@ class DataTest(TestBase):
     }
 
     def runSingle(self, data, filename, line, col, results):
-        d = pymake.parser.Data(data, 0, len(data), pymake.parserdata.Location(filename, line, col))
+        d = pymake.basic.Data(data, 0, len(data), pymake.basic.Location(filename, line, col))
         for pos, file, lineno, col in results:
             loc = d.getloc(pos)
             self.assertEqual(loc.path, file, "data file offset %i" % pos)
@@ -126,7 +126,7 @@ class IterTest(TestBase):
     }
 
     def runSingle(self, ifunc, idata, expected):
-        d = pymake.parser.Data.fromstring(idata, 'IterTest data')
+        d = pymake.basic.Data.fromstring(idata, 'IterTest data')
 
         it = pymake.parser._alltokens.finditer(d.s, 0, d.lend)
         actual = ''.join( [c for c, t, o, oo in ifunc(d, 0, ('dummy-token',), it)] )
@@ -231,7 +231,7 @@ class MakeSyntaxTest(TestBase):
                         raise Exception("Unexpected property at %s: %s" % (ipath, k))
 
     def runSingle(self, s, startat, stopat, stopoffset, expansion):
-        d = pymake.parser.Data.fromstring(s, pymake.parserdata.Location('testdata', 1, 0))
+        d = pymake.basic.Data.fromstring(s, pymake.basic.Location('testdata', 1, 0))
 
         a, t, offset = pymake.parser.parsemakesyntax(d, startat, stopat, pymake.parser.itermakefilechars)
         self.compareRecursive(a, expansion, [])
