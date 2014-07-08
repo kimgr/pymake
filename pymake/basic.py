@@ -1,13 +1,13 @@
 """
-Basic type definitions. Do not introduce dependencies to other pymake modules,
-or you risk circular dependencies.
+Basic type definitions.
+
+Do not import other pymake modules, or you risk introducing circular
+dependencies.
 """
 import re
 
 
 _tabwidth = 4
-
-
 class Location(object):
     """
     A location within a makefile.
