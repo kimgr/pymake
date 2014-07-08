@@ -16,7 +16,7 @@ from pymake.functions import WordlistFunction
 from pymake.parserdata import Include
 from pymake.parserdata import SetVariable
 from pymake.parser import parsestring
-from pymake.parser import SyntaxError
+from pymake.errors import SyntaxError
 
 class TestBase(unittest.TestCase):
     pass
