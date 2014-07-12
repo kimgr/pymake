@@ -225,7 +225,7 @@ class Expansion(BaseExpansion, list):
 
     @staticmethod
     def fromstring(s, path):
-        return StringExpansion(s, parserdata.Location(path, 1, 0))
+        return StringExpansion(s, Location(path, 1, 0))
 
     def clone(self):
         e = Expansion()
@@ -462,8 +462,8 @@ class Variables(object):
         flavor, source, valuestr, valueexp = self._map.get(name, (None, None, None, None))
         if flavor is not None:
             if expand and flavor != self.FLAVOR_SIMPLE and valueexp is None:
-                d = parser.Data.fromstring(valuestr, parserdata.Location("Expansion of variables '%s'" % (name,), 1, 0))
-                valueexp, t, o = parser.parsemakesyntax(d, 0, (), parser.iterdata)
+                d = Data.fromstring(valuestr, Location("Expansion of variables '%s'" % (name,), 1, 0))
+                valueexp, t, o = parsemakesyntax(d, 0, (), iterdata)
                 self._map[name] = flavor, source, valuestr, valueexp
 
             if flavor == self.FLAVOR_APPEND:
@@ -531,8 +531,8 @@ class Variables(object):
             return
 
         if prevflavor == self.FLAVOR_SIMPLE:
-            d = parser.Data.fromstring(value, parserdata.Location("Expansion of variables '%s'" % (name,), 1, 0))
-            valueexp, t, o = parser.parsemakesyntax(d, 0, (), parser.iterdata)
+            d = Data.fromstring(value, Location("Expansion of variables '%s'" % (name,), 1, 0))
+            valueexp, t, o = parsemakesyntax(d, 0, (), iterdata)
 
             val = valueexp.resolvestr(makefile, variables, [name])
             self._map[name] = prevflavor, prevsource, prevvalue + ' ' + val, None
@@ -1790,9 +1790,9 @@ class Makefile(object):
             fspath = util.normaljoin(self.workdir, path)
             if os.path.exists(fspath):
                 if weak:
-                    stmts = parser.parsedepfile(fspath)
+                    stmts = parsedepfile(fspath)
                 else:
-                    stmts = parser.parsefile(fspath)
+                    stmts = parsefile(fspath)
                 self.variables.append('MAKEFILE_LIST', Variables.SOURCE_AUTOMATIC, path, None, self)
                 stmts.execute(self, weak=weak)
                 self.gettarget(path).explicit = True
@@ -1851,11 +1851,11 @@ class Makefile(object):
 
         env['MAKELEVEL'] = str(self.makelevel + 1)
         return env
+
+
 """
 Makefile functions.
 """
-log = logging.getLogger('pymake.data')
-
 def emit_expansions(descend, *expansions):
     """Helper function to emit all expansions within an input set."""
     for expansion in expansions:
@@ -1903,7 +1903,7 @@ class Function(object):
         assert self.maxargs == 0 or argc <= self.maxargs, "Parser screwed up, gave us too many args"
 
     def append(self, arg):
-        assert isinstance(arg, (data.Expansion, data.StringExpansion))
+        assert isinstance(arg, (Expansion, StringExpansion))
         self._arguments.append(arg)
 
     def to_source(self):
@@ -1942,7 +1942,7 @@ class Function(object):
         returned. If descend is True, we will descend into child expansions and
         return all of the composite parts.
 
-        This is a generator for pymake.data.BaseExpansion instances.
+        This is a generator for pymake.engine.BaseExpansion instances.
         """
         # Our default implementation simply returns arguments. More advanced
         # functions like variable references may need their own implementation.
@@ -2013,7 +2013,7 @@ class VariableRef(Function):
 
     def __init__(self, loc, vname):
         self.loc = loc
-        assert isinstance(vname, (data.Expansion, data.StringExpansion))
+        assert isinstance(vname, (Expansion, StringExpansion))
         self.vname = vname
 
     def setup(self):
@@ -2026,13 +2026,13 @@ class VariableRef(Function):
 
         flavor, source, value = variables.get(vname)
         if value is None:
-            log.debug("%s: variable '%s' was not set" % (self.loc, vname))
+            _data_log.debug("%s: variable '%s' was not set" % (self.loc, vname))
             return
 
         value.resolve(makefile, variables, fd, setting + [vname])
 
     def to_source(self):
-        if isinstance(self.vname, data.StringExpansion):
+        if isinstance(self.vname, StringExpansion):
             if self.vname.s in self.AUTOMATIC_VARIABLES:
                 return '$%s' % self.vname.s
 
@@ -2076,12 +2076,12 @@ class SubstitutionRef(Function):
 
         flavor, source, value = variables.get(vname)
         if value is None:
-            log.debug("%s: variable '%s' was not set" % (self.loc, vname))
+            _data_log.debug("%s: variable '%s' was not set" % (self.loc, vname))
             return
 
-        f = data.Pattern(substfrom)
+        f = Pattern(substfrom)
         if not f.ispattern():
-            f = data.Pattern('%' + substfrom)
+            f = Pattern('%' + substfrom)
             substto = '%' + substto
 
         fd.write(' '.join([f.subst(substto, word, False)
@@ -2132,7 +2132,7 @@ class PatSubstFunction(Function):
         s = self._arguments[0].resolvestr(makefile, variables, setting)
         r = self._arguments[1].resolvestr(makefile, variables, setting)
 
-        p = data.Pattern(s)
+        p = Pattern(s)
         fd.write(' '.join([p.subst(r, word, False)
                            for word in self._arguments[2].resolvesplit(makefile, variables, setting)]))
 
@@ -2168,7 +2168,7 @@ class FilterFunction(Function):
     __slots__ = Function.__slots__
 
     def resolve(self, makefile, variables, fd, setting):
-        plist = [data.Pattern(p)
+        plist = [Pattern(p)
                  for p in self._arguments[0].resolvesplit(makefile, variables, setting)]
 
         fd.write(' '.join([w for w in self._arguments[1].resolvesplit(makefile, variables, setting)
@@ -2182,7 +2182,7 @@ class FilteroutFunction(Function):
     __slots__ = Function.__slots__
 
     def resolve(self, makefile, variables, fd, setting):
-        plist = [data.Pattern(p)
+        plist = [Pattern(p)
                  for p in self._arguments[0].resolvesplit(makefile, variables, setting)]
 
         fd.write(' '.join([w for w in self._arguments[1].resolvesplit(makefile, variables, setting)
@@ -2487,7 +2487,7 @@ class ForEachFunction(Function):
         vname = self._arguments[0].resolvestr(makefile, variables, setting)
         e = self._arguments[2]
 
-        v = data.Variables(parent=variables)
+        v = Variables(parent=variables)
         firstword = True
 
         for w in self._arguments[1].resolvesplit(makefile, variables, setting):
@@ -2499,8 +2499,8 @@ class ForEachFunction(Function):
             # The $(origin) of the local variable must be "automatic" to
             # conform with GNU make. However, automatic variables have low
             # priority. So, we must force its assignment to occur.
-            v.set(vname, data.Variables.FLAVOR_SIMPLE,
-                    data.Variables.SOURCE_AUTOMATIC, w, force=True)
+            v.set(vname, Variables.FLAVOR_SIMPLE,
+                    Variables.SOURCE_AUTOMATIC, w, force=True)
             e.resolve(makefile, v, fd, setting)
 
 class CallFunction(Function):
@@ -2515,19 +2515,19 @@ class CallFunction(Function):
         if vname in setting:
             raise errors.DataError("Recursively setting variable '%s'" % (vname,))
 
-        v = data.Variables(parent=variables)
-        v.set('0', data.Variables.FLAVOR_SIMPLE, data.Variables.SOURCE_AUTOMATIC, vname)
+        v = Variables(parent=variables)
+        v.set('0', Variables.FLAVOR_SIMPLE, Variables.SOURCE_AUTOMATIC, vname)
         for i in range(1, len(self._arguments)):
             param = self._arguments[i].resolvestr(makefile, variables, setting)
-            v.set(str(i), data.Variables.FLAVOR_SIMPLE, data.Variables.SOURCE_AUTOMATIC, param)
+            v.set(str(i), Variables.FLAVOR_SIMPLE, Variables.SOURCE_AUTOMATIC, param)
 
         flavor, source, e = variables.get(vname)
 
         if e is None:
             return
 
-        if flavor == data.Variables.FLAVOR_SIMPLE:
-            log.warning("%s: calling variable '%s' which is simply-expanded" % (self.loc, vname))
+        if flavor == Variables.FLAVOR_SIMPLE:
+            _data_log.warning("%s: calling variable '%s' which is simply-expanded" % (self.loc, vname))
 
         # but we'll do it anyway
         e.resolve(makefile, v, fd, setting + [vname])
@@ -2557,7 +2557,7 @@ class EvalFunction(Function):
             # command execution. This seems really dumb to me, so I don't!
             raise errors.DataError("$(eval) not allowed via recursive expansion after parsing is finished", self.loc)
 
-        stmts = parser.parsestring(self._arguments[0].resolvestr(makefile, variables, setting),
+        stmts = parsestring(self._arguments[0].resolvestr(makefile, variables, setting),
                                    'evaluation from %s' % self.loc)
         stmts.execute(makefile)
 
@@ -2574,18 +2574,18 @@ class OriginFunction(Function):
         flavor, source, value = variables.get(vname)
         if source is None:
             r = 'undefined'
-        elif source == data.Variables.SOURCE_OVERRIDE:
+        elif source == Variables.SOURCE_OVERRIDE:
             r = 'override'
 
-        elif source == data.Variables.SOURCE_MAKEFILE:
+        elif source == Variables.SOURCE_MAKEFILE:
             r = 'file'
-        elif source == data.Variables.SOURCE_ENVIRONMENT:
+        elif source == Variables.SOURCE_ENVIRONMENT:
             r = 'environment'
-        elif source == data.Variables.SOURCE_COMMANDLINE:
+        elif source == Variables.SOURCE_COMMANDLINE:
             r = 'command line'
-        elif source == data.Variables.SOURCE_AUTOMATIC:
+        elif source == Variables.SOURCE_AUTOMATIC:
             r = 'automatic'
-        elif source == data.Variables.SOURCE_IMPLICIT:
+        elif source == Variables.SOURCE_IMPLICIT:
             r = 'default'
 
         fd.write(r)
@@ -2603,9 +2603,9 @@ class FlavorFunction(Function):
         flavor, source, value = variables.get(varname)
         if flavor is None:
             r = 'undefined'
-        elif flavor == data.Variables.FLAVOR_RECURSIVE:
+        elif flavor == Variables.FLAVOR_RECURSIVE:
             r = 'recursive'
-        elif flavor == data.Variables.FLAVOR_SIMPLE:
+        elif flavor == Variables.FLAVOR_SIMPLE:
             r = 'simple'
         fd.write(r)
 
@@ -2628,7 +2628,7 @@ class ShellFunction(Function):
         if makefile.env is not None and 'PATH' in makefile.env:
             os.environ['PATH'] = makefile.env['PATH']
 
-        log.debug("%s: running command '%s'" % (self.loc, ' '.join(cline)))
+        _data_log.debug("%s: running command '%s'" % (self.loc, ' '.join(cline)))
         try:
             p = subprocess.Popen(cline, executable=executable, env=makefile.env, shell=False,
                                  stdout=subprocess.PIPE, cwd=makefile.workdir)
@@ -2666,7 +2666,7 @@ class WarningFunction(Function):
 
     def resolve(self, makefile, variables, fd, setting):
         v = self._arguments[0].resolvestr(makefile, variables, setting)
-        log.warning(v)
+        _data_log.warning(v)
 
 class InfoFunction(Function):
     name = 'info'
@@ -2800,14 +2800,14 @@ def parsecommandlineargs(args):
             overrides.append(_flagescape.sub(r'\\\1', a))
 
             vname = vname.strip()
-            vnameexp = data.Expansion.fromstring(vname, "Command-line argument")
+            vnameexp = Expansion.fromstring(vname, "Command-line argument")
 
             stmts.append(ExportDirective(vnameexp, concurrent_set=True))
             stmts.append(SetVariable(vnameexp, token=t,
                                      value=val, valueloc=Location('<command-line>', i, len(vname) + len(t)),
-                                     targetexp=None, source=data.Variables.SOURCE_COMMANDLINE))
+                                     targetexp=None, source=Variables.SOURCE_COMMANDLINE))
         else:
-            r.append(data.stripdotslash(a))
+            r.append(stripdotslash(a))
 
     return stmts, r, ' '.join(overrides)
 
@@ -2862,8 +2862,8 @@ class Rule(Statement):
     __slots__ = ('targetexp', 'depexp', 'doublecolon')
 
     def __init__(self, targetexp, depexp, doublecolon):
-        assert isinstance(targetexp, (data.Expansion, data.StringExpansion))
-        assert isinstance(depexp, (data.Expansion, data.StringExpansion))
+        assert isinstance(targetexp, (Expansion, StringExpansion))
+        assert isinstance(depexp, (Expansion, StringExpansion))
 
         self.targetexp = targetexp
         self.depexp = depexp
@@ -2885,8 +2885,8 @@ class Rule(Statement):
         # Skip targets with no rules and no dependencies
         if not deps:
             return
-        targets = data.stripdotslashes(self.targetexp.resolvesplit(makefile, makefile.variables))
-        rule = data.Rule(list(data.stripdotslashes(deps)), self.doublecolon, loc=self.targetexp.loc, weakdeps=True)
+        targets = stripdotslashes(self.targetexp.resolvesplit(makefile, makefile.variables))
+        rule = Rule(list(stripdotslashes(deps)), self.doublecolon, loc=self.targetexp.loc, weakdeps=True)
         for target in targets:
             makefile.gettarget(target).addrule(rule)
             makefile.foundtarget(target)
@@ -2895,8 +2895,8 @@ class Rule(Statement):
     def _execute(self, makefile, context):
         assert not context.weak
 
-        atargets = data.stripdotslashes(self.targetexp.resolvesplit(makefile, makefile.variables))
-        targets = [data.Pattern(p) for p in _expandwildcards(makefile, atargets)]
+        atargets = stripdotslashes(self.targetexp.resolvesplit(makefile, makefile.variables))
+        targets = [Pattern(p) for p in _expandwildcards(makefile, atargets)]
 
         if not len(targets):
             context.currule = DummyRule()
@@ -2907,13 +2907,13 @@ class Rule(Statement):
             raise errors.DataError("Mixed implicit and normal rule", self.targetexp.loc)
         ispattern, = ispatterns
 
-        deps = list(_expandwildcards(makefile, data.stripdotslashes(self.depexp.resolvesplit(makefile, makefile.variables))))
+        deps = list(_expandwildcards(makefile, stripdotslashes(self.depexp.resolvesplit(makefile, makefile.variables))))
         if ispattern:
-            prerequisites = [data.Pattern(d) for d in deps]
-            rule = data.PatternRule(targets, prerequisites, self.doublecolon, loc=self.targetexp.loc)
+            prerequisites = [Pattern(d) for d in deps]
+            rule = PatternRule(targets, prerequisites, self.doublecolon, loc=self.targetexp.loc)
             makefile.appendimplicitrule(rule)
         else:
-            rule = data.Rule(deps, self.doublecolon, loc=self.targetexp.loc, weakdeps=False)
+            rule = Rule(deps, self.doublecolon, loc=self.targetexp.loc, weakdeps=False)
             for t in targets:
                 makefile.gettarget(t.gettarget()).addrule(rule)
 
@@ -2960,9 +2960,9 @@ class StaticPatternRule(Statement):
     __slots__ = ('targetexp', 'patternexp', 'depexp', 'doublecolon')
 
     def __init__(self, targetexp, patternexp, depexp, doublecolon):
-        assert isinstance(targetexp, (data.Expansion, data.StringExpansion))
-        assert isinstance(patternexp, (data.Expansion, data.StringExpansion))
-        assert isinstance(depexp, (data.Expansion, data.StringExpansion))
+        assert isinstance(targetexp, (Expansion, StringExpansion))
+        assert isinstance(patternexp, (Expansion, StringExpansion))
+        assert isinstance(depexp, (Expansion, StringExpansion))
 
         self.targetexp = targetexp
         self.patternexp = patternexp
@@ -2973,28 +2973,28 @@ class StaticPatternRule(Statement):
         if context.weak:
             raise errors.DataError("Static pattern rules not allowed in includedeps", self.targetexp.loc)
 
-        targets = list(_expandwildcards(makefile, data.stripdotslashes(self.targetexp.resolvesplit(makefile, makefile.variables))))
+        targets = list(_expandwildcards(makefile, stripdotslashes(self.targetexp.resolvesplit(makefile, makefile.variables))))
 
         if not len(targets):
             context.currule = DummyRule()
             return
 
-        patterns = list(data.stripdotslashes(self.patternexp.resolvesplit(makefile, makefile.variables)))
+        patterns = list(stripdotslashes(self.patternexp.resolvesplit(makefile, makefile.variables)))
         if len(patterns) != 1:
             raise errors.DataError("Static pattern rules must have a single pattern", self.patternexp.loc)
-        pattern = data.Pattern(patterns[0])
+        pattern = Pattern(patterns[0])
 
-        deps = [data.Pattern(p) for p in _expandwildcards(makefile, data.stripdotslashes(self.depexp.resolvesplit(makefile, makefile.variables)))]
+        deps = [Pattern(p) for p in _expandwildcards(makefile, stripdotslashes(self.depexp.resolvesplit(makefile, makefile.variables)))]
 
-        rule = data.PatternRule([pattern], deps, self.doublecolon, loc=self.targetexp.loc)
+        rule = PatternRule([pattern], deps, self.doublecolon, loc=self.targetexp.loc)
 
         for t in targets:
-            if data.Pattern(t).ispattern():
+            if Pattern(t).ispattern():
                 raise errors.DataError("Target '%s' of a static pattern rule must not be a pattern" % (t,), self.targetexp.loc)
             stem = pattern.match(t)
             if stem is None:
                 raise errors.DataError("Target '%s' does not match the static pattern '%s'" % (t, pattern), self.targetexp.loc)
-            makefile.gettarget(t).addrule(data.PatternRuleInstance(rule, '', stem, pattern.ismatchany()))
+            makefile.gettarget(t).addrule(PatternRuleInstance(rule, '', stem, pattern.ismatchany()))
 
         makefile.foundtarget(targets[0])
         context.currule = rule
@@ -3043,7 +3043,7 @@ class Command(Statement):
     __slots__ = ('exp',)
 
     def __init__(self, exp):
-        assert isinstance(exp, (data.Expansion, data.StringExpansion))
+        assert isinstance(exp, (Expansion, StringExpansion))
         self.exp = exp
 
     def execute(self, makefile, context):
@@ -3087,7 +3087,7 @@ class SetVariable(Statement):
 
     These correspond to the fields `vnameexp`, `token`, and `value`. In
     addition, `valueloc` will be a Location and `source` will be a
-    pymake.data.Variables.SOURCE_* constant.
+    pymake.engine.Variables.SOURCE_* constant.
 
     There are also target-specific variables. These are variables that only
     apply in the context of a specific target. They are like the aforementioned
@@ -3097,12 +3097,12 @@ class SetVariable(Statement):
     __slots__ = ('vnameexp', 'token', 'value', 'valueloc', 'targetexp', 'source')
 
     def __init__(self, vnameexp, token, value, valueloc, targetexp, source=None):
-        assert isinstance(vnameexp, (data.Expansion, data.StringExpansion))
+        assert isinstance(vnameexp, (Expansion, StringExpansion))
         assert isinstance(value, str)
-        assert targetexp is None or isinstance(targetexp, (data.Expansion, data.StringExpansion))
+        assert targetexp is None or isinstance(targetexp, (Expansion, StringExpansion))
 
         if source is None:
-            source = data.Variables.SOURCE_MAKEFILE
+            source = Variables.SOURCE_MAKEFILE
 
         self.vnameexp = vnameexp
         self.token = token
@@ -3121,7 +3121,7 @@ class SetVariable(Statement):
         else:
             setvariables = []
 
-            targets = [data.Pattern(t) for t in data.stripdotslashes(self.targetexp.resolvesplit(makefile, makefile.variables))]
+            targets = [Pattern(t) for t in stripdotslashes(self.targetexp.resolvesplit(makefile, makefile.variables))]
             for t in targets:
                 if t.ispattern():
                     setvariables.append(makefile.getpatternvariables(t))
@@ -3134,20 +3134,20 @@ class SetVariable(Statement):
                 continue
 
             if self.token == '?=':
-                flavor = data.Variables.FLAVOR_RECURSIVE
+                flavor = Variables.FLAVOR_RECURSIVE
                 oldflavor, oldsource, oldval = v.get(vname, expand=False)
                 if oldval is not None:
                     continue
                 value = self.value
             elif self.token == '=':
-                flavor = data.Variables.FLAVOR_RECURSIVE
+                flavor = Variables.FLAVOR_RECURSIVE
                 value = self.value
             else:
                 assert self.token == ':='
 
-                flavor = data.Variables.FLAVOR_SIMPLE
-                d = parser.Data.fromstring(self.value, self.valueloc)
-                e, t, o = parser.parsemakesyntax(d, 0, (), parser.iterdata)
+                flavor = Variables.FLAVOR_SIMPLE
+                d = Data.fromstring(self.value, self.valueloc)
+                e, t, o = parsemakesyntax(d, 0, (), iterdata)
                 value = e.resolvestr(makefile, makefile.variables)
 
             v.set(vname, flavor, self.source, value)
@@ -3185,7 +3185,7 @@ class SetVariable(Statement):
         value = ''.join(chars)
 
         prefix = ''
-        if self.source == data.Variables.SOURCE_OVERRIDE:
+        if self.source == Variables.SOURCE_OVERRIDE:
             prefix = 'override '
 
         # SetVariable come in two flavors: simple and target-specific.
@@ -3245,8 +3245,8 @@ class EqCondition(Condition):
     __slots__ = ('exp1', 'exp2', 'expected')
 
     def __init__(self, exp1, exp2):
-        assert isinstance(exp1, (data.Expansion, data.StringExpansion))
-        assert isinstance(exp2, (data.Expansion, data.StringExpansion))
+        assert isinstance(exp1, (Expansion, StringExpansion))
+        assert isinstance(exp2, (Expansion, StringExpansion))
 
         self.expected = True
         self.exp1 = exp1
@@ -3281,7 +3281,7 @@ class IfdefCondition(Condition):
     __slots__ = ('exp', 'expected')
 
     def __init__(self, exp):
-        assert isinstance(exp, (data.Expansion, data.StringExpansion))
+        assert isinstance(exp, (Expansion, StringExpansion))
         self.exp = exp
         self.expected = True
 
@@ -3497,7 +3497,7 @@ class Include(Statement):
     __slots__ = ('exp', 'required', 'deps')
 
     def __init__(self, exp, required, weak):
-        assert isinstance(exp, (data.Expansion, data.StringExpansion))
+        assert isinstance(exp, (Expansion, StringExpansion))
         self.exp = exp
         self.required = required
         self.weak = weak
@@ -3533,15 +3533,15 @@ class VPathDirective(Statement):
     __slots__ = ('exp',)
 
     def __init__(self, exp):
-        assert isinstance(exp, (data.Expansion, data.StringExpansion))
+        assert isinstance(exp, (Expansion, StringExpansion))
         self.exp = exp
 
     def execute(self, makefile, context):
-        words = list(data.stripdotslashes(self.exp.resolvesplit(makefile, makefile.variables)))
+        words = list(stripdotslashes(self.exp.resolvesplit(makefile, makefile.variables)))
         if len(words) == 0:
             makefile.clearallvpaths()
         else:
-            pattern = data.Pattern(words[0])
+            pattern = Pattern(words[0])
             mpaths = words[1:]
 
             if len(mpaths) == 0:
@@ -3584,7 +3584,7 @@ class ExportDirective(Statement):
     __slots__ = ('exp', 'concurrent_set')
 
     def __init__(self, exp, concurrent_set):
-        assert isinstance(exp, (data.Expansion, data.StringExpansion))
+        assert isinstance(exp, (Expansion, StringExpansion))
         self.exp = exp
         self.concurrent_set = concurrent_set
 
@@ -3653,7 +3653,7 @@ class EmptyDirective(Statement):
     __slots__ = ('exp',)
 
     def __init__(self, exp):
-        assert isinstance(exp, (data.Expansion, data.StringExpansion))
+        assert isinstance(exp, (Expansion, StringExpansion))
         self.exp = exp
 
     def execute(self, makefile, context):
@@ -3736,7 +3736,7 @@ Lines with an initial tab are commands if they can be (there is a rule or a comm
 Otherwise, they are parsed as makefile syntax.
 
 This file parses into the data structures defined in the parserdata module. Those classes are what actually
-do the dirty work of "executing" the parsed data into a data.Makefile.
+do the dirty work of "executing" the parsed data into a engine.Makefile.
 
 Four iterator functions are available:
 * iterdata
@@ -3773,7 +3773,7 @@ class Data(object):
 
     @staticmethod
     def fromstring(s, path):
-        return Data(s, 0, len(s), parserdata.Location(path, 1, 0))
+        return Data(s, 0, len(s), Location(path, 1, 0))
 
     def getloc(self, offset):
         assert offset >= self.lstart and offset <= self.lend
@@ -3808,13 +3808,13 @@ def enumeratelines(s, filename):
             # odd number of backslashes is a continuation
             continue
 
-        yield Data(s, off, end - 1, parserdata.Location(filename, lineno, 0))
+        yield Data(s, off, end - 1, Location(filename, lineno, 0))
 
         lineno += curlines
         curlines = 0
         off = end
 
-    yield Data(s, off, len(s), parserdata.Location(filename, lineno, 0))
+    yield Data(s, off, len(s), Location(filename, lineno, 0))
 
 _alltokens = re.compile(r'''\\*\# | # hash mark preceeded by any number of backslashes
                             := |
@@ -4026,7 +4026,7 @@ def ifeq(d, offset):
 
         _ensureend(d, offset, "Unexpected text after conditional")
 
-    return parserdata.EqCondition(arg1, arg2)
+    return EqCondition(arg1, arg2)
 
 def ifneq(d, offset):
     c = ifeq(d, offset)
@@ -4037,7 +4037,7 @@ def ifdef(d, offset):
     e, t, offset = parsemakesyntax(d, offset, (), itermakefilechars)
     e.rstrip()
 
-    return parserdata.IfdefCondition(e)
+    return IfdefCondition(e)
 
 def ifndef(d, offset):
     c = ifdef(d, offset)
@@ -4080,7 +4080,7 @@ _parsecache = util.MostUsedCache(50, _parsefile, _checktime)
 
 def parsefile(pathname):
     """
-    Parse a filename into a parserdata.StatementList. A cache is used to avoid re-parsing
+    Parse a filename into a StatementList. A cache is used to avoid re-parsing
     makefiles that have already been parsed and have not changed.
     """
 
@@ -4094,7 +4094,7 @@ _vars = re.compile('\$\((\w+)\)')
 
 def parsedepfile(pathname):
     """
-    Parse a filename listing only depencencies into a parserdata.StatementList.
+    Parse a filename listing only depencencies into a StatementList.
     Simple variable references are allowed in such files.
     """
     def continuation_iter(lines):
@@ -4114,36 +4114,36 @@ def parsedepfile(pathname):
 
     def get_expansion(s):
         if '$' in s:
-            expansion = data.Expansion()
+            expansion = Expansion()
             # for an input like e.g. "foo $(bar) baz",
             # _vars.split returns ["foo", "bar", "baz"]
             # every other element is a variable name.
             for i, element in enumerate(_vars.split(s)):
                 if i % 2:
                     expansion.appendfunc(VariableRef(None,
-                        data.StringExpansion(element, None)))
+                        StringExpansion(element, None)))
                 elif element:
                     expansion.appendstr(element)
 
             return expansion
 
-        return data.StringExpansion(s, None)
+        return StringExpansion(s, None)
 
     pathname = os.path.realpath(pathname)
-    stmts = parserdata.StatementList()
+    stmts = StatementList()
     for line in continuation_iter(open(pathname).readlines()):
         target, deps = _depfilesplitter.split(line, 1)
-        stmts.append(parserdata.Rule(get_expansion(target),
+        stmts.append(Rule(get_expansion(target),
                                      get_expansion(deps), False))
     return stmts
 
 def parsestring(s, filename):
     """
-    Parse a string containing makefile data into a parserdata.StatementList.
+    Parse a string containing makefile data into a StatementList.
     """
 
     currule = False
-    condstack = [parserdata.StatementList()]
+    condstack = [StatementList()]
 
     fdlines = enumeratelines(s, filename)
     for d in fdlines:
@@ -4155,7 +4155,7 @@ def parsestring(s, filename):
             e, token, offset = parsemakesyntax(d, offset + 1, (), itercommandchars)
             assert token is None
             assert offset is None
-            condstack[-1].append(parserdata.Command(e))
+            condstack[-1].append(Command(e))
             continue
 
         # To parse Makefile syntax, we first strip leading whitespace and
@@ -4188,7 +4188,7 @@ def parsestring(s, filename):
                 m = _conditionre.match(d.s, offset, d.lend)
                 if m is None:
                     _ensureend(d, offset, "Unexpected data after 'else' directive.")
-                    condstack[-1].addcondition(d.getloc(offset), parserdata.ElseCondition())
+                    condstack[-1].addcondition(d.getloc(offset), ElseCondition())
                 else:
                     kword = m.group(1)
                     if kword not in _conditionkeywords:
@@ -4203,7 +4203,7 @@ def parsestring(s, filename):
 
             if kword in _conditionkeywords:
                 c = _conditionkeywords[kword](d, offset)
-                cb = parserdata.ConditionBlock(d.getloc(d.lstart), c)
+                cb = ConditionBlock(d.getloc(d.lstart), c)
                 condstack[-1].append(cb)
                 condstack.append(cb)
                 continue
@@ -4218,7 +4218,7 @@ def parsestring(s, filename):
 
                 startloc = d.getloc(d.lstart)
                 value = iterdefinelines(fdlines, startloc)
-                condstack[-1].append(parserdata.SetVariable(vname, value=value, valueloc=startloc, token='=', targetexp=None))
+                condstack[-1].append(SetVariable(vname, value=value, valueloc=startloc, token='=', targetexp=None))
                 continue
 
             if kword in ('include', '-include', 'includedeps', '-includedeps'):
@@ -4232,14 +4232,14 @@ def parsestring(s, filename):
 
                 currule = False
                 incfile, t, offset = parsemakesyntax(d, offset, (), itermakefilechars)
-                condstack[-1].append(parserdata.Include(incfile, required, deps))
+                condstack[-1].append(Include(incfile, required, deps))
 
                 continue
 
             if kword == 'vpath':
                 currule = False
                 e, t, offset = parsemakesyntax(d, offset, (), itermakefilechars)
-                condstack[-1].append(parserdata.VPathDirective(e))
+                condstack[-1].append(VPathDirective(e))
                 continue
 
             if kword == 'override':
@@ -4253,7 +4253,7 @@ def parsestring(s, filename):
 
                 value = flattenmakesyntax(d, offset).lstrip()
 
-                condstack[-1].append(parserdata.SetVariable(vname, value=value, valueloc=d.getloc(offset), token=token, targetexp=None, source=data.Variables.SOURCE_OVERRIDE))
+                condstack[-1].append(SetVariable(vname, value=value, valueloc=d.getloc(offset), token=token, targetexp=None, source=Variables.SOURCE_OVERRIDE))
                 continue
 
             if kword == 'export':
@@ -4263,18 +4263,18 @@ def parsestring(s, filename):
                 e.rstrip()
 
                 if token is None:
-                    condstack[-1].append(parserdata.ExportDirective(e, concurrent_set=False))
+                    condstack[-1].append(ExportDirective(e, concurrent_set=False))
                 else:
-                    condstack[-1].append(parserdata.ExportDirective(e, concurrent_set=True))
+                    condstack[-1].append(ExportDirective(e, concurrent_set=True))
 
                     value = flattenmakesyntax(d, offset).lstrip()
-                    condstack[-1].append(parserdata.SetVariable(e, value=value, valueloc=d.getloc(offset), token=token, targetexp=None))
+                    condstack[-1].append(SetVariable(e, value=value, valueloc=d.getloc(offset), token=token, targetexp=None))
 
                 continue
 
             if kword == 'unexport':
                 e, token, offset = parsemakesyntax(d, offset, (), itermakefilechars)
-                condstack[-1].append(parserdata.UnexportDirective(e))
+                condstack[-1].append(UnexportDirective(e))
                 continue
 
         e, token, offset = parsemakesyntax(d, offset, _varsettokens + ('::', ':'), itermakefilechars)
@@ -4282,7 +4282,7 @@ def parsestring(s, filename):
             e.rstrip()
             e.lstrip()
             if not e.isempty():
-                condstack[-1].append(parserdata.EmptyDirective(e))
+                condstack[-1].append(EmptyDirective(e))
             continue
 
         # if we encountered real makefile syntax, the current rule is over
@@ -4294,7 +4294,7 @@ def parsestring(s, filename):
 
             value = flattenmakesyntax(d, offset).lstrip()
 
-            condstack[-1].append(parserdata.SetVariable(e, value=value, valueloc=d.getloc(offset), token=token, targetexp=None))
+            condstack[-1].append(SetVariable(e, value=value, valueloc=d.getloc(offset), token=token, targetexp=None))
         else:
             doublecolon = token == '::'
 
@@ -4312,20 +4312,20 @@ def parsestring(s, filename):
                                                _varsettokens + (':', '|', ';'),
                                                itermakefilechars)
             if token in (None, ';'):
-                condstack[-1].append(parserdata.Rule(targets, e, doublecolon))
+                condstack[-1].append(Rule(targets, e, doublecolon))
                 currule = True
 
                 if token == ';':
                     offset = d.skipwhitespace(offset)
                     e, t, offset = parsemakesyntax(d, offset, (), itercommandchars)
-                    condstack[-1].append(parserdata.Command(e))
+                    condstack[-1].append(Command(e))
 
             elif token in _varsettokens:
                 e.lstrip()
                 e.rstrip()
 
                 value = flattenmakesyntax(d, offset).lstrip()
-                condstack[-1].append(parserdata.SetVariable(e, value=value, valueloc=d.getloc(offset), token=token, targetexp=targets))
+                condstack[-1].append(SetVariable(e, value=value, valueloc=d.getloc(offset), token=token, targetexp=targets))
             elif token == '|':
                 raise errors.SyntaxError('order-only prerequisites not implemented', d.getloc(offset))
             else:
@@ -4336,13 +4336,13 @@ def parsestring(s, filename):
 
                 deps, token, offset = parsemakesyntax(d, offset, (';',), itermakefilechars)
 
-                condstack[-1].append(parserdata.StaticPatternRule(targets, pattern, deps, doublecolon))
+                condstack[-1].append(StaticPatternRule(targets, pattern, deps, doublecolon))
                 currule = True
 
                 if token == ';':
                     offset = d.skipwhitespace(offset)
                     e, token, offset = parsemakesyntax(d, offset, (), itercommandchars)
-                    condstack[-1].append(parserdata.Command(e))
+                    condstack[-1].append(Command(e))
 
     if len(condstack) != 1:
         raise errors.SyntaxError("Condition never terminated with endif", condstack[-1].loc)
@@ -4379,7 +4379,7 @@ _matchingbrace = {
 
 def parsemakesyntax(d, offset, stopon, iterfunc):
     """
-    Given Data, parse it into a data.Expansion.
+    Given Data, parse it into a engine.Expansion.
 
     @param stopon (sequence)
         Indicate characters where toplevel parsing should stop.
@@ -4396,7 +4396,7 @@ def parsemakesyntax(d, offset, stopon, iterfunc):
 
     assert callable(iterfunc)
 
-    stacktop = ParseStackFrame(_PARSESTATE_TOPLEVEL, None, data.Expansion(loc=d.getloc(d.lstart)),
+    stacktop = ParseStackFrame(_PARSESTATE_TOPLEVEL, None, Expansion(loc=d.getloc(d.lstart)),
                                tokenlist=stopon + ('$',),
                                openbrace=None, closebrace=None)
 
@@ -4432,7 +4432,7 @@ def parsemakesyntax(d, offset, stopon, iterfunc):
                 if len(token) > 2:
                     fname = token[2:].rstrip()
                     fn = functionmap[fname](loc)
-                    e = data.Expansion()
+                    e = Expansion()
                     if len(fn) + 1 == fn.maxargs:
                         tokenlist = (c, closebrace, '$')
                     else:
@@ -4442,14 +4442,14 @@ def parsemakesyntax(d, offset, stopon, iterfunc):
                                                e, tokenlist, function=fn,
                                                openbrace=c, closebrace=closebrace)
                 else:
-                    e = data.Expansion()
+                    e = Expansion()
                     tokenlist = (':', c, closebrace, '$')
                     stacktop = ParseStackFrame(_PARSESTATE_VARNAME, stacktop,
                                                e, tokenlist,
                                                openbrace=c, closebrace=closebrace, loc=loc)
             else:
                 assert len(token) == 2
-                e = data.Expansion.fromstring(c, loc)
+                e = Expansion.fromstring(c, loc)
                 stacktop.expansion.appendfunc(VariableRef(loc, e))
         elif token in ('(', '{'):
             assert token == stacktop.openbrace
@@ -4470,7 +4470,7 @@ def parsemakesyntax(d, offset, stopon, iterfunc):
             if token == ',':
                 stacktop.function.append(stacktop.expansion.finish())
 
-                stacktop.expansion = data.Expansion()
+                stacktop.expansion = Expansion()
                 if len(stacktop.function) + 1 == stacktop.function.maxargs:
                     tokenlist = (stacktop.openbrace, stacktop.closebrace, '$')
                     stacktop.tokenlist = tokenlist
@@ -4487,7 +4487,7 @@ def parsemakesyntax(d, offset, stopon, iterfunc):
             if token == ':':
                 stacktop.varname = stacktop.expansion
                 stacktop.parsestate = _PARSESTATE_SUBSTFROM
-                stacktop.expansion = data.Expansion()
+                stacktop.expansion = Expansion()
                 stacktop.tokenlist = ('=', stacktop.openbrace, stacktop.closebrace, '$')
             elif token in (')', '}'):
                 fn = VariableRef(stacktop.loc, stacktop.expansion.finish())
@@ -4499,7 +4499,7 @@ def parsemakesyntax(d, offset, stopon, iterfunc):
             if token == '=':
                 stacktop.substfrom = stacktop.expansion
                 stacktop.parsestate = _PARSESTATE_SUBSTTO
-                stacktop.expansion = data.Expansion()
+                stacktop.expansion = Expansion()
                 stacktop.tokenlist = (stacktop.openbrace, stacktop.closebrace, '$')
             elif token in (')', '}'):
                 # A substitution of the form $(VARNAME:.ee) is probably a mistake, but make
