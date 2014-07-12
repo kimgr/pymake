@@ -2718,6 +2718,9 @@ functionmap = {
 }
 
 
+"""
+Parser data structures.
+"""
 _tabwidth = 4
 
 class Location(object):
@@ -2843,7 +2846,7 @@ class DummyRule(object):
     def addcommand(self, r):
         pass
 
-class Rule(Statement):
+class RuleStatement(Statement):
     """
     Rules represent how to make specific targets.
 
@@ -2940,7 +2943,7 @@ class Rule(Statement):
             deps)
 
     def __eq__(self, other):
-        if not isinstance(other, Rule):
+        if not isinstance(other, RuleStatement):
             return False
 
         return self.targetexp == other.targetexp \
@@ -2954,7 +2957,7 @@ class StaticPatternRule(Statement):
 
     See https://www.gnu.org/software/make/manual/make.html#Static-Pattern
 
-    They are like `Rule` instances except an added property, `patternexp` is
+    They are like `RuleStatement` instances except an added property, `patternexp` is
     present. It contains the Expansion which represents the rule pattern.
     """
     __slots__ = ('targetexp', 'patternexp', 'depexp', 'doublecolon')
@@ -4133,7 +4136,7 @@ def parsedepfile(pathname):
     stmts = StatementList()
     for line in continuation_iter(open(pathname).readlines()):
         target, deps = _depfilesplitter.split(line, 1)
-        stmts.append(Rule(get_expansion(target),
+        stmts.append(RuleStatement(get_expansion(target),
                                      get_expansion(deps), False))
     return stmts
 
@@ -4312,7 +4315,7 @@ def parsestring(s, filename):
                                                _varsettokens + (':', '|', ';'),
                                                itermakefilechars)
             if token in (None, ';'):
-                condstack[-1].append(Rule(targets, e, doublecolon))
+                condstack[-1].append(RuleStatement(targets, e, doublecolon))
                 currule = True
 
                 if token == ';':
