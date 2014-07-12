@@ -1,13 +1,17 @@
-from __future__ import print_function
+"""
+This module houses the entire Makefile parsing and execution
+engine.
 
+It's all collapsed into one module because Make concepts are heavily
+intertwined -- expansion requires parsing, parsing requires expansion,
+execution requires parsing, etc, etc.
 """
-A representation of makefile data structures.
-"""
+from __future__ import print_function
 
 import logging, re, os, sys, subprocess
 from functools import reduce
 
-import process, util, implicit, globrelative
+import process, util, implicit
 from pymake import errors
 from pymake.globrelative import hasglob, glob
 
@@ -16,7 +20,9 @@ try:
 except ImportError:
     from io import StringIO
 
-
+"""
+A representation of makefile data structures.
+"""
 if sys.version_info[0] < 3:
     str_type = basestring
 else:
@@ -1782,7 +1788,7 @@ class Makefile(object):
         Include the makefile at `path`.
         """
         if self._globcheck.search(path):
-            paths = globrelative.glob(self.workdir, path)
+            paths = glob(self.workdir, path)
         else:
             paths = [path]
         for path in paths:
@@ -3722,8 +3728,10 @@ def iterstatements(stmts):
         if isinstance(s, ConditionBlock):
             for c, sl in s:
                 for s2 in iterstatments(sl): yield s2
+
+
 """
-Module for parsing Makefile syntax.
+Functionality for parsing Makefile syntax.
 
 Makefiles use a line-based parsing system. Continuations and substitutions are handled differently based on the
 type of line being parsed:
@@ -3738,7 +3746,7 @@ Lines with command syntax do not condense continuations: the backslash and newli
 Lines with an initial tab are commands if they can be (there is a rule or a command immediately preceding).
 Otherwise, they are parsed as makefile syntax.
 
-This file parses into the data structures defined in the parserdata module. Those classes are what actually
+This file parses into the parser data structures. Those classes are what actually
 do the dirty work of "executing" the parsed data into a engine.Makefile.
 
 Four iterator functions are available:
