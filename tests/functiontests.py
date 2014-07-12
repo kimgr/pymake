@@ -1,23 +1,22 @@
 import unittest
 
-import pymake.data
-import pymake.functions
+import pymake.engine
 
 class VariableRefTest(unittest.TestCase):
     def test_get_expansions(self):
-        e = pymake.data.StringExpansion('FOO', None)
-        f = pymake.functions.VariableRef(None, e)
+        e = pymake.engine.StringExpansion('FOO', None)
+        f = pymake.engine.VariableRef(None, e)
 
         exps = list(f.expansions())
         self.assertEqual(len(exps), 1)
 
 class GetExpansionsTest(unittest.TestCase):
     def test_get_arguments(self):
-        f = pymake.functions.SubstFunction(None)
+        f = pymake.engine.SubstFunction(None)
 
-        e1 = pymake.data.StringExpansion('FOO', None)
-        e2 = pymake.data.StringExpansion('BAR', None)
-        e3 = pymake.data.StringExpansion('BAZ', None)
+        e1 = pymake.engine.StringExpansion('FOO', None)
+        e2 = pymake.engine.StringExpansion('BAR', None)
+        e3 = pymake.engine.StringExpansion('BAZ', None)
 
         f.append(e1)
         f.append(e2)
@@ -27,16 +26,16 @@ class GetExpansionsTest(unittest.TestCase):
         self.assertEqual(len(exps), 3)
 
     def test_descend(self):
-        f = pymake.functions.StripFunction(None)
+        f = pymake.engine.StripFunction(None)
 
-        e = pymake.data.Expansion(None)
+        e = pymake.engine.Expansion(None)
 
-        e1 = pymake.data.StringExpansion('FOO', None)
-        f1 = pymake.functions.VariableRef(None, e1)
+        e1 = pymake.engine.StringExpansion('FOO', None)
+        f1 = pymake.engine.VariableRef(None, e1)
         e.appendfunc(f1)
 
-        f2 = pymake.functions.WildcardFunction(None)
-        e2 = pymake.data.StringExpansion('foo/*', None)
+        f2 = pymake.engine.WildcardFunction(None)
+        e2 = pymake.engine.StringExpansion('foo/*', None)
         f2.append(e2)
         e.appendfunc(f2)
 

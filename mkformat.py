@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import sys
-import pymake.parser
+import pymake.engine
 
 filename = sys.argv[1]
 source = None
@@ -9,5 +9,5 @@ source = None
 with open(filename, 'rU') as fh:
     source = fh.read()
 
-statements = pymake.parser.parsestring(source, filename)
+statements = pymake.engine.parsestring(source, filename)
 print(statements.to_source())

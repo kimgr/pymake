@@ -4,10 +4,12 @@ from __future__ import print_function
 A representation of makefile data structures.
 """
 
-import logging, re, os, sys
+import logging, re, os, sys, subprocess
 from functools import reduce
+
 import process, util, implicit, globrelative
 from pymake import errors
+from pymake.globrelative import hasglob, glob
 
 try:
     from cStringIO import StringIO
@@ -20,7 +22,7 @@ if sys.version_info[0] < 3:
 else:
     str_type = str
 
-_log = logging.getLogger('pymake.data')
+_data_log = logging.getLogger('pymake.data')
 
 def withoutdups(it):
     r = set()
@@ -510,7 +512,7 @@ class Variables(object):
         prevflavor, prevsource, prevvalue = self.get(name)
         if prevsource is not None and source > prevsource and not force:
             # TODO: give a location for this warning
-            _log.info("not setting variable '%s', set by higher-priority source to value '%s'" % (name, prevvalue))
+            _data_log.info("not setting variable '%s', set by higher-priority source to value '%s'" % (name, prevvalue))
             return
 
         self._map[name] = flavor, source, value, None
@@ -909,7 +911,7 @@ class RemakeRuleContext(object):
                         if d.mtime is None:
                             self.target.beingremade()
                         else:
-                            _log.info("%sNot remaking %s ubecause it would have no effect, even though %s is newer.", indent, self.target.target, d.target)
+                            _data_log.info("%sNot remaking %s ubecause it would have no effect, even though %s is newer.", indent, self.target.target, d.target)
                         break
             cb(error=False)
             return
@@ -917,28 +919,28 @@ class RemakeRuleContext(object):
         if self.rule.doublecolon:
             if len(self.deps) == 0:
                 if self.avoidremakeloop:
-                    _log.info("%sNot remaking %s using rule at %s because it would introduce an infinite loop.", indent, self.target.target, self.rule.loc)
+                    _data_log.info("%sNot remaking %s using rule at %s because it would introduce an infinite loop.", indent, self.target.target, self.rule.loc)
                     cb(error=False)
                     return
 
         remake = self.remake
         if remake:
-            _log.info("%sRemaking %s using rule at %s: weak dependency was not found.", indent, self.target.target, self.rule.loc)
+            _data_log.info("%sRemaking %s using rule at %s: weak dependency was not found.", indent, self.target.target, self.rule.loc)
         else:
             if self.target.mtime is None:
                 remake = True
-                _log.info("%sRemaking %s using rule at %s: target doesn't exist or is a forced target", indent, self.target.target, self.rule.loc)
+                _data_log.info("%sRemaking %s using rule at %s: target doesn't exist or is a forced target", indent, self.target.target, self.rule.loc)
 
         if not remake:
             if self.rule.doublecolon:
                 if len(self.deps) == 0:
-                    _log.info("%sRemaking %s using rule at %s because there are no prerequisites listed for a double-colon rule.", indent, self.target.target, self.rule.loc)
+                    _data_log.info("%sRemaking %s using rule at %s because there are no prerequisites listed for a double-colon rule.", indent, self.target.target, self.rule.loc)
                     remake = True
 
         if not remake:
             for d, weak in self.deps:
                 if mtimeislater(d.mtime, self.target.mtime):
-                    _log.info("%sRemaking %s using rule at %s because %s is newer.", indent, self.target.target, self.rule.loc, d.target)
+                    _data_log.info("%sRemaking %s using rule at %s because %s is newer.", indent, self.target.target, self.rule.loc, d.target)
                     remake = True
                     break
 
@@ -1018,7 +1020,7 @@ class Target(object):
 
         indent = getindent(targetstack)
 
-        _log.info("%sSearching for implicit rule to make '%s'", indent, self.target)
+        _data_log.info("%sSearching for implicit rule to make '%s'", indent, self.target)
 
         dir, s, file = util.strrpartition(self.target, '/')
         dir = dir + s
@@ -1029,7 +1031,7 @@ class Target(object):
 
         for r in makefile.implicitrules:
             if r in rulestack:
-                _log.info("%s %s: Avoiding implicit rule recursion", indent, r.loc)
+                _data_log.info("%s %s: Avoiding implicit rule recursion", indent, r.loc)
                 continue
 
             if not len(r.commands):
@@ -1051,12 +1053,12 @@ class Target(object):
 
             if depfailed is not None:
                 if r.doublecolon:
-                    _log.info("%s Terminal rule at %s doesn't match: prerequisite '%s' not mentioned and doesn't exist.", indent, r.loc, depfailed)
+                    _data_log.info("%s Terminal rule at %s doesn't match: prerequisite '%s' not mentioned and doesn't exist.", indent, r.loc, depfailed)
                 else:
                     newcandidates.append(r)
                 continue
 
-            _log.info("%sFound implicit rule at %s for target '%s'", indent, r.loc, self.target)
+            _data_log.info("%sFound implicit rule at %s for target '%s'", indent, r.loc, self.target)
             self.rules.append(r)
             return
 
@@ -1075,14 +1077,14 @@ class Target(object):
                     break
 
             if depfailed is not None:
-                _log.info("%s Rule at %s doesn't match: prerequisite '%s' could not be made.", indent, r.loc, depfailed)
+                _data_log.info("%s Rule at %s doesn't match: prerequisite '%s' could not be made.", indent, r.loc, depfailed)
                 continue
 
-            _log.info("%sFound implicit rule at %s for target '%s'", indent, r.loc, self.target)
+            _data_log.info("%sFound implicit rule at %s for target '%s'", indent, r.loc, self.target)
             self.rules.append(r)
             return
 
-        _log.info("%sCouldn't find implicit rule to remake '%s'", indent, self.target)
+        _data_log.info("%sCouldn't find implicit rule to remake '%s'", indent, self.target)
 
     def ruleswithcommands(self):
         "The number of rules with commands"
@@ -1114,7 +1116,7 @@ class Target(object):
         
         indent = getindent(targetstack)
 
-        _log.info("%sConsidering target '%s'", indent, self.target)
+        _data_log.info("%sConsidering target '%s'", indent, self.target)
 
         self.resolvevpath(makefile)
 
@@ -1211,7 +1213,7 @@ class Target(object):
         for t in locs:
             fspath = util.normaljoin(makefile.workdir, t).replace('\\', '/')
             mtime = getmtime(fspath)
-#            _log.info("Searching %s ... checking %s ... mtime %r" % (t, fspath, mtime))
+#            _data_log.info("Searching %s ... checking %s ... mtime %r" % (t, fspath, mtime))
             if mtime is not None:
                 return (t, mtime)
 
@@ -1602,7 +1604,7 @@ class _RemakeContext(object):
         else:
             for t, required in self.included:
                 if t.wasremade:
-                    _log.info("Included file %s was remade, restarting make", t.target)
+                    _data_log.info("Included file %s was remade, restarting make", t.target)
                     self.cb(remade=True)
                     return
                 elif required and t.mtime is None:
@@ -1852,11 +1854,6 @@ class Makefile(object):
 """
 Makefile functions.
 """
-import subprocess, os, logging, sys
-import util
-from pymake.globrelative import glob
-from pymake import errors
-
 log = logging.getLogger('pymake.data')
 
 def emit_expansions(descend, *expansions):
@@ -2720,18 +2717,7 @@ functionmap = {
     'info': InfoFunction,
 }
 
-import logging, re, os
-import util
-from pymake.globrelative import hasglob, glob
-from pymake import errors
 
-try:
-    from cStringIO import StringIO
-except ImportError:
-    from io import StringIO
-
-
-_log = logging.getLogger('pymake.data')
 _tabwidth = 4
 
 class Location(object):
@@ -3373,7 +3359,7 @@ class ConditionBlock(Statement):
         i = 0
         for c, statements in self._groups:
             if c.evaluate(makefile):
-                _log.debug("Condition at %s met by clause #%i", self.loc, i)
+                _data_log.debug("Condition at %s met by clause #%i", self.loc, i)
                 statements.execute(makefile, context)
                 return
 
@@ -3768,11 +3754,7 @@ token, tokenoffset, afteroffset *may be None*. That means there is more text
 coming.
 """
 
-import logging, re, os, sys
-import util
-from pymake import errors
-
-_log = logging.getLogger('pymake.parser')
+_pars_log = logging.getLogger('pymake.parser')
 
 _skipws = re.compile('\S')
 class Data(object):
@@ -4089,7 +4071,7 @@ def _parsefile(pathname):
 def _checktime(path, stmts):
     mtime = os.path.getmtime(path)
     if mtime != stmts.mtime:
-        _log.debug("Re-parsing makefile '%s': mtimes differ", path)
+        _pars_log.debug("Re-parsing makefile '%s': mtimes differ", path)
         return False
 
     return True
@@ -4523,7 +4505,7 @@ def parsemakesyntax(d, offset, stopon, iterfunc):
                 # A substitution of the form $(VARNAME:.ee) is probably a mistake, but make
                 # parses it. Issue a warning. Combine the varname and substfrom expansions to
                 # make the compatible varname. See tests/var-substitutions.mk SIMPLE3SUBSTNAME
-                _log.warning("%s: Variable reference looks like substitution without =", stacktop.loc)
+                _pars_log.warning("%s: Variable reference looks like substitution without =", stacktop.loc)
                 stacktop.varname.appendstr(':')
                 stacktop.varname.concat(stacktop.expansion)
                 fn = VariableRef(stacktop.loc, stacktop.varname.finish())

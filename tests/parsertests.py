@@ -1,4 +1,4 @@
-import pymake.data, pymake.parser, pymake.parserdata, pymake.functions
+import pymake.engine, pymake.engine, pymake.engine, pymake.engine
 import unittest
 import logging
 
@@ -27,7 +27,7 @@ class DataTest(TestBase):
     }
 
     def runSingle(self, data, filename, line, col, results):
-        d = pymake.parser.Data(data, 0, len(data), pymake.parserdata.Location(filename, line, col))
+        d = pymake.engine.Data(data, 0, len(data), pymake.engine.Location(filename, line, col))
         for pos, file, lineno, col in results:
             loc = d.getloc(pos)
             self.assertEqual(loc.path, file, "data file offset %i" % pos)
@@ -66,7 +66,7 @@ class LineEnumeratorTest(TestBase):
         }
 
     def runSingle(self, s, lines):
-        gotlines = [(d.s[d.lstart:d.lend], d.loc.line) for d in pymake.parser.enumeratelines(s, 'path')]
+        gotlines = [(d.s[d.lstart:d.lend], d.loc.line) for d in pymake.engine.enumeratelines(s, 'path')]
         self.assertEqual(gotlines, lines)
 
 multitest(LineEnumeratorTest)
@@ -74,78 +74,78 @@ multitest(LineEnumeratorTest)
 class IterTest(TestBase):
     testdata = {
         'plaindata': (
-            pymake.parser.iterdata,
+            pymake.engine.iterdata,
             "plaindata # test\n",
             "plaindata # test\n"
             ),
         'makecomment': (
-            pymake.parser.itermakefilechars,
+            pymake.engine.itermakefilechars,
             "VAR = val # comment",
             "VAR = val "
             ),
         'makeescapedcomment': (
-            pymake.parser.itermakefilechars,
+            pymake.engine.itermakefilechars,
             "VAR = val \# escaped hash",
             "VAR = val # escaped hash"
             ),
         'makeescapedslash': (
-            pymake.parser.itermakefilechars,
+            pymake.engine.itermakefilechars,
             "VAR = val\\\\",
             "VAR = val\\\\",
             ),
         'makecontinuation': (
-            pymake.parser.itermakefilechars,
+            pymake.engine.itermakefilechars,
             "VAR = VAL  \\\n  continuation # comment \\\n  continuation",
             "VAR = VAL continuation "
             ),
         'makecontinuation2': (
-            pymake.parser.itermakefilechars,
+            pymake.engine.itermakefilechars,
             "VAR = VAL  \\  \\\n continuation",
             "VAR = VAL  \\ continuation"
             ),
         'makeawful': (
-            pymake.parser.itermakefilechars,
+            pymake.engine.itermakefilechars,
             "VAR = VAL  \\\\# comment\n",
             "VAR = VAL  \\"
             ),
         'command': (
-            pymake.parser.itercommandchars,
+            pymake.engine.itercommandchars,
             "echo boo # comment",
             "echo boo # comment",
             ),
         'commandcomment': (
-            pymake.parser.itercommandchars,
+            pymake.engine.itercommandchars,
             "echo boo \# comment",
             "echo boo \# comment",
             ),
         'commandcontinue': (
-            pymake.parser.itercommandchars,
+            pymake.engine.itercommandchars,
             "echo boo # \\\n\t  command 2",
             "echo boo # \\\n  command 2"
             ),
     }
 
     def runSingle(self, ifunc, idata, expected):
-        d = pymake.parser.Data.fromstring(idata, 'IterTest data')
+        d = pymake.engine.Data.fromstring(idata, 'IterTest data')
 
-        it = pymake.parser._alltokens.finditer(d.s, 0, d.lend)
+        it = pymake.engine._alltokens.finditer(d.s, 0, d.lend)
         actual = ''.join( [c for c, t, o, oo in ifunc(d, 0, ('dummy-token',), it)] )
         self.assertEqual(actual, expected)
 
-        if ifunc == pymake.parser.itermakefilechars:
+        if ifunc == pymake.engine.itermakefilechars:
             print("testing %r" % expected)
-            self.assertEqual(pymake.parser.flattenmakesyntax(d, 0), expected)
+            self.assertEqual(pymake.engine.flattenmakesyntax(d, 0), expected)
 
 multitest(IterTest)
 
 
 #         'define': (
-#             pymake.parser.iterdefinechars,
+#             pymake.engine.iterdefinechars,
 #             "endef",
 #             ""
 #             ),
 #        'definenesting': (
-#            pymake.parser.iterdefinechars,
+#            pymake.engine.iterdefinechars,
 #            """define BAR # comment
 #random text
 #endef not what you think!
@@ -155,7 +155,7 @@ multitest(IterTest)
 #endef not what you think!"""
 #            ),
 #        'defineescaped': (
-#            pymake.parser.iterdefinechars,
+#            pymake.engine.iterdefinechars,
 #            """value   \\
 #endef
 #endef\n""",
@@ -214,7 +214,7 @@ class MakeSyntaxTest(TestBase):
             if isinstance(e, str):
                 self.assertEqual(a, e, "compareRecursive: %s" % (ipath,))
             else:
-                self.assertEqual(type(a), getattr(pymake.functions, e['type']),
+                self.assertEqual(type(a), getattr(pymake.engine, e['type']),
                                  "compareRecursive: %s" % (ipath,))
                 for k, v in e.items():
                     if k == 'type':
@@ -231,9 +231,9 @@ class MakeSyntaxTest(TestBase):
                         raise Exception("Unexpected property at %s: %s" % (ipath, k))
 
     def runSingle(self, s, startat, stopat, stopoffset, expansion):
-        d = pymake.parser.Data.fromstring(s, pymake.parserdata.Location('testdata', 1, 0))
+        d = pymake.engine.Data.fromstring(s, pymake.engine.Location('testdata', 1, 0))
 
-        a, t, offset = pymake.parser.parsemakesyntax(d, startat, stopat, pymake.parser.itermakefilechars)
+        a, t, offset = pymake.engine.parsemakesyntax(d, startat, stopat, pymake.engine.itermakefilechars)
         self.compareRecursive(a, expansion, [])
         self.assertEqual(offset, stopoffset)
 
@@ -259,9 +259,9 @@ class VariableTest(TestBase):
                 'UNDEF': None}
 
     def runTest(self):
-        stmts = pymake.parser.parsestring(self.testdata, 'VariableTest')
+        stmts = pymake.engine.parsestring(self.testdata, 'VariableTest')
 
-        m = pymake.data.Makefile()
+        m = pymake.engine.Makefile()
         stmts.execute(m)
         for k, v in self.expected.items():
             flavor, source, val = m.variables.get(k)
@@ -283,9 +283,9 @@ all:: test test2 $(VAR)
 """
 
     def runTest(self):
-        stmts = pymake.parser.parsestring(self.testdata, 'SimpleRuleTest')
+        stmts = pymake.engine.parsestring(self.testdata, 'SimpleRuleTest')
 
-        m = pymake.data.Makefile()
+        m = pymake.engine.Makefile()
         stmts.execute(m)
         self.assertEqual(m.defaulttarget, 'all', "Default target")
 

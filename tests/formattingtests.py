@@ -7,16 +7,8 @@ import logging
 import os.path
 import unittest
 
-from pymake.data import Expansion
-from pymake.data import StringExpansion
-from pymake.functions import BasenameFunction
-from pymake.functions import SubstitutionRef
-from pymake.functions import VariableRef
-from pymake.functions import WordlistFunction
-from pymake.parserdata import Include
-from pymake.parserdata import SetVariable
-from pymake.parser import parsestring
-from pymake.parser import SyntaxError
+from pymake.engine import Expansion, StringExpansion, BasenameFunction, SubstitutionRef, VariableRef, WordlistFunction, Include, SetVariable, parsestring
+from pymake.errors import SyntaxError
 
 class TestBase(unittest.TestCase):
     pass

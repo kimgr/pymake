@@ -1,4 +1,4 @@
-import pymake.data, pymake.functions, pymake.util
+import pymake.engine, pymake.util
 import unittest
 import re
 
@@ -36,7 +36,7 @@ class GetPatSubstTest(unittest.TestCase):
     def runTest(self):
         for s, r, d, e in self.testdata:
             words = d.split()
-            p = pymake.data.Pattern(s)
+            p = pymake.engine.Pattern(s)
             a = ' '.join((p.subst(r, word, False)
                           for word in words))
             self.assertEqual(a, e, 'Pattern(%r).subst(%r, %r)' % (s, r, d))
@@ -76,14 +76,14 @@ class LRUTest(unittest.TestCase):
 
 class EqualityTest(unittest.TestCase):
     def test_string_expansion(self):
-        s1 = pymake.data.StringExpansion('foo bar', None)
-        s2 = pymake.data.StringExpansion('foo bar', None)
+        s1 = pymake.engine.StringExpansion('foo bar', None)
+        s2 = pymake.engine.StringExpansion('foo bar', None)
 
         self.assertEqual(s1, s2)
 
     def test_expansion_simple(self):
-        s1 = pymake.data.Expansion(None)
-        s2 = pymake.data.Expansion(None)
+        s1 = pymake.engine.Expansion(None)
+        s2 = pymake.engine.Expansion(None)
 
         self.assertEqual(s1, s2)
 
@@ -93,8 +93,8 @@ class EqualityTest(unittest.TestCase):
 
     def test_expansion_string_finish(self):
         """Adjacent strings should normalize to same value."""
-        s1 = pymake.data.Expansion(None)
-        s2 = pymake.data.Expansion(None)
+        s1 = pymake.engine.Expansion(None)
+        s2 = pymake.engine.Expansion(None)
 
         s1.appendstr('foo')
         s2.appendstr('foo')
@@ -106,14 +106,14 @@ class EqualityTest(unittest.TestCase):
         self.assertEqual(s1, s2)
 
     def test_function(self):
-        s1 = pymake.data.Expansion(None)
-        s2 = pymake.data.Expansion(None)
+        s1 = pymake.engine.Expansion(None)
+        s2 = pymake.engine.Expansion(None)
 
-        n1 = pymake.data.StringExpansion('FOO', None)
-        n2 = pymake.data.StringExpansion('FOO', None)
+        n1 = pymake.engine.StringExpansion('FOO', None)
+        n2 = pymake.engine.StringExpansion('FOO', None)
 
-        v1 = pymake.functions.VariableRef(None, n1)
-        v2 = pymake.functions.VariableRef(None, n2)
+        v1 = pymake.engine.VariableRef(None, n1)
+        v2 = pymake.engine.VariableRef(None, n2)
 
         s1.appendfunc(v1)
         s2.appendfunc(v2)
@@ -123,7 +123,7 @@ class EqualityTest(unittest.TestCase):
 
 class StringExpansionTest(unittest.TestCase):
     def test_base_expansion_interface(self):
-        s1 = pymake.data.StringExpansion('FOO', None)
+        s1 = pymake.engine.StringExpansion('FOO', None)
 
         self.assertTrue(s1.is_static_string)
 
@@ -139,7 +139,7 @@ class StringExpansionTest(unittest.TestCase):
 
 class ExpansionTest(unittest.TestCase):
     def test_is_static_string(self):
-        e1 = pymake.data.Expansion()
+        e1 = pymake.engine.Expansion()
         e1.appendstr('foo')
 
         self.assertTrue(e1.is_static_string)
@@ -147,22 +147,22 @@ class ExpansionTest(unittest.TestCase):
         e1.appendstr('bar')
         self.assertTrue(e1.is_static_string)
 
-        vname = pymake.data.StringExpansion('FOO', None)
-        func = pymake.functions.VariableRef(None, vname)
+        vname = pymake.engine.StringExpansion('FOO', None)
+        func = pymake.engine.VariableRef(None, vname)
 
         e1.appendfunc(func)
 
         self.assertFalse(e1.is_static_string)
 
     def test_get_functions(self):
-        e1 = pymake.data.Expansion()
+        e1 = pymake.engine.Expansion()
         e1.appendstr('foo')
 
-        vname1 = pymake.data.StringExpansion('FOO', None)
-        vname2 = pymake.data.StringExpansion('BAR', None)
+        vname1 = pymake.engine.StringExpansion('FOO', None)
+        vname2 = pymake.engine.StringExpansion('BAR', None)
 
-        func1 = pymake.functions.VariableRef(None, vname1)
-        func2 = pymake.functions.VariableRef(None, vname2)
+        func1 = pymake.engine.VariableRef(None, vname1)
+        func2 = pymake.engine.VariableRef(None, vname2)
 
         e1.appendfunc(func1)
         e1.appendfunc(func2)
@@ -170,7 +170,7 @@ class ExpansionTest(unittest.TestCase):
         funcs = list(e1.functions())
         self.assertEqual(len(funcs), 2)
 
-        func3 = pymake.functions.SortFunction(None)
+        func3 = pymake.engine.SortFunction(None)
         func3.append(vname1)
 
         e1.appendfunc(func3)
@@ -182,13 +182,13 @@ class ExpansionTest(unittest.TestCase):
         self.assertEqual(len(refs), 2)
 
     def test_get_functions_descend(self):
-        e1 = pymake.data.Expansion()
-        vname1 = pymake.data.StringExpansion('FOO', None)
-        func1 = pymake.functions.VariableRef(None, vname1)
-        e2 = pymake.data.Expansion()
+        e1 = pymake.engine.Expansion()
+        vname1 = pymake.engine.StringExpansion('FOO', None)
+        func1 = pymake.engine.VariableRef(None, vname1)
+        e2 = pymake.engine.Expansion()
         e2.appendfunc(func1)
 
-        func2 = pymake.functions.SortFunction(None)
+        func2 = pymake.engine.SortFunction(None)
         func2.append(e2)
 
         e1.appendfunc(func2)
@@ -199,35 +199,35 @@ class ExpansionTest(unittest.TestCase):
         funcs = list(e1.functions(True))
         self.assertEqual(len(funcs), 2)
 
-        self.assertTrue(isinstance(funcs[0], pymake.functions.SortFunction))
+        self.assertTrue(isinstance(funcs[0], pymake.engine.SortFunction))
 
     def test_is_filesystem_dependent(self):
-        e = pymake.data.Expansion()
-        vname1 = pymake.data.StringExpansion('FOO', None)
-        func1 = pymake.functions.VariableRef(None, vname1)
+        e = pymake.engine.Expansion()
+        vname1 = pymake.engine.StringExpansion('FOO', None)
+        func1 = pymake.engine.VariableRef(None, vname1)
         e.appendfunc(func1)
 
         self.assertFalse(e.is_filesystem_dependent)
 
-        func2 = pymake.functions.WildcardFunction(None)
+        func2 = pymake.engine.WildcardFunction(None)
         func2.append(vname1)
         e.appendfunc(func2)
 
         self.assertTrue(e.is_filesystem_dependent)
 
     def test_is_filesystem_dependent_descend(self):
-        sort = pymake.functions.SortFunction(None)
-        wildcard = pymake.functions.WildcardFunction(None)
+        sort = pymake.engine.SortFunction(None)
+        wildcard = pymake.engine.WildcardFunction(None)
 
-        e = pymake.data.StringExpansion('foo/*', None)
+        e = pymake.engine.StringExpansion('foo/*', None)
         wildcard.append(e)
 
-        e = pymake.data.Expansion(None)
+        e = pymake.engine.Expansion(None)
         e.appendfunc(wildcard)
 
         sort.append(e)
 
-        e = pymake.data.Expansion(None)
+        e = pymake.engine.Expansion(None)
         e.appendfunc(sort)
 
         self.assertTrue(e.is_filesystem_dependent)
