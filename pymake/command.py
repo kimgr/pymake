@@ -11,7 +11,7 @@ except when a submake specifies -j1 when the parent make is building in parallel
 
 import os, subprocess, sys, logging, time, traceback, re
 from optparse import OptionParser
-import data, parserdata, process, util
+import engine, process, util
 from pymake import errors
 
 # TODO: If this ever goes from relocatable package to system-installed, this may need to be
@@ -104,18 +104,19 @@ class _MakeContext(object):
             if self.restarts > 0:
                 _log.info("make.py[%i]: Restarting makefile parsing", self.makelevel)
 
-            self.makefile = data.Makefile(restarts=self.restarts,
-                                          make='%s %s' % (sys.executable.replace('\\', '/'), makepypath.replace('\\', '/')),
-                                          makeflags=self.makeflags,
-                                          makeoverrides=self.overrides,
-                                          workdir=self.workdir,
-                                          context=self.context,
-                                          env=self.env,
-                                          makelevel=self.makelevel,
-                                          targets=self.targets,
-                                          keepgoing=self.options.keepgoing,
-                                          silent=self.options.silent,
-                                          justprint=self.options.justprint)
+            self.makefile = engine.Makefile(
+                restarts=self.restarts,
+                make='%s %s' % (sys.executable.replace('\\', '/'), makepypath.replace('\\', '/')),
+                makeflags=self.makeflags,
+                makeoverrides=self.overrides,
+                workdir=self.workdir,
+                context=self.context,
+                env=self.env,
+                makelevel=self.makelevel,
+                targets=self.targets,
+                keepgoing=self.options.keepgoing,
+                silent=self.options.silent,
+                justprint=self.options.justprint)
 
             self.restarts += 1
 
@@ -267,7 +268,7 @@ def main(args, env, cwd, cb):
                 cb(2)
                 return
 
-        ostmts, targets, overrides = parserdata.parsecommandlineargs(arguments)
+        ostmts, targets, overrides = engine.parsecommandlineargs(arguments)
 
         _MakeContext(makeflags, makelevel, workdir, context, env, targets, options, ostmts, overrides, cb)
     except errors.MakeError as e:
