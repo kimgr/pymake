@@ -2623,9 +2623,8 @@ class ShellFunction(Function):
     __slots__ = Function.__slots__
 
     def resolve(self, makefile, variables, fd, setting):
-        from process import prepare_command
         cline = self._arguments[0].resolvestr(makefile, variables, setting)
-        executable, cline = prepare_command(cline, makefile.workdir, self.loc)
+        executable, cline = process.prepare_command(cline, makefile.workdir, self.loc)
 
         # subprocess.Popen doesn't use the PATH set in the env argument for
         # finding the executable on some platforms (but strangely it does on
