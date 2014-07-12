@@ -11,8 +11,8 @@ from __future__ import print_function
 import logging, re, os, sys, subprocess
 from functools import reduce
 
-import process, util, implicit
-from pymake import errors
+import util, implicit
+from pymake import errors, process
 from pymake.globrelative import hasglob, glob
 
 try:
