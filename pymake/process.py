@@ -11,7 +11,6 @@ import site
 from collections import deque
 # XXXkhuey Work around http://bugs.python.org/issue1731717
 subprocess._cleanup = lambda: None
-import command
 from pymake import errors, util
 if sys.platform=='win32':
     from pymake import win32process
@@ -252,30 +251,6 @@ def prepare_command(cline, cwd, loc):
         executable = None
 
     return executable, argv
-
-def call(cline, env, cwd, loc, cb, context, echo, justprint=False):
-    executable, argv = prepare_command(cline, cwd, loc)
-
-    if not len(argv):
-        cb(res=0)
-        return
-
-    if argv[0] == command.makepypath:
-        command.main(argv[1:], env, cwd, cb)
-        return
-
-    if argv[0:2] == [sys.executable.replace('\\', '/'),
-                     command.makepypath.replace('\\', '/')]:
-        command.main(argv[2:], env, cwd, cb)
-        return
-
-    context.call(argv, executable=executable, shell=False, env=env, cwd=cwd, cb=cb,
-                 echo=echo, justprint=justprint)
-
-def call_native(module, method, argv, env, cwd, loc, cb, context, echo, justprint=False,
-                pycommandpath=None):
-    context.call_native(module, method, argv, env=env, cwd=cwd, cb=cb,
-                        echo=echo, justprint=justprint, pycommandpath=pycommandpath)
 
 def statustoresult(status):
     """
