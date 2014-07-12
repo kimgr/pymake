@@ -7,7 +7,7 @@ Filename globbing like the python glob module with minor differences:
 """
 
 import os, re, fnmatch
-import util
+from pymake import util
 
 _globcheck = re.compile('[[*?]')
 

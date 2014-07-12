@@ -2,7 +2,7 @@
 import errno, sys, os, shutil, time
 from getopt import getopt, GetoptError
 
-from pymake  import errors
+from pymake import errors
 
 __all__ = ["mkdir", "rm", "sleep", "touch"]
 
